@@ -1,7 +1,6 @@
 package fileTree
 
 import (
-	"github.com/fatih/color"
 	"strconv"
 )
 
@@ -47,10 +46,10 @@ func ByteString(b int64) (res string) {
 	K := b / KiloByte
 	B := b % KiloByte
 	if T != 0 {
-		res += strconv.Itoa(int(T)) + color.HiRedString("T")
+		res += strconv.Itoa(int(T)) + "T"
 	}
 	if G != 0 {
-		res += strconv.Itoa(int(G)) + color.GreenString("G")
+		res += strconv.Itoa(int(G)) + "G"
 	}
 	if M != 0 {
 		res += strconv.Itoa(int(M)) + "M"

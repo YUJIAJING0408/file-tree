@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -52,14 +53,19 @@ var walkCmd = &cobra.Command{
 			Perm:     uint16(stat.Mode().Perm()),
 		}
 		fmt.Println(fmt.Sprintf("FileTree will walk '%s' .", dirPath))
+		var countFile *fileTree.CountFile = nil
+		if countFlag {
+			countFile = fileTree.NewCountFile(6)
+		}
 		var done = make(chan struct{})
 		go func(d chan struct{}) {
-			err := rootDir.WalkSync(0, maxSyncDepth)
+			err := rootDir.WalkSync(0, maxSyncDepth, countFile)
 			if err != nil {
 				fmt.Println(err)
 			}
 			d <- struct{}{}
 		}(done)
+
 		var count = 0
 		var countSlice = []string{"▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"}
 	loop:
@@ -72,18 +78,52 @@ var walkCmd = &cobra.Command{
 				fmt.Printf("\rFileTree is walking '%s' [%s] .", dirPath, countSlice[count%len(countSlice)])
 			}
 		}
-		var bytes []byte
+
+		var treeBytes []byte
 		switch outType {
 		case "json":
-			bytes, err = json.Marshal(&rootDir)
+			treeBytes, err = json.Marshal(&rootDir)
 		case "yaml":
-			bytes, err = yaml.Marshal(&rootDir)
+			treeBytes, err = yaml.Marshal(&rootDir)
 		default:
 			panic(fmt.Sprintf("unknown output type: %s", outType))
 		}
-		outputFilePath := filepath.Join(output, fmt.Sprintf("[%s-%s].%s", rootDir.Name, time.Now().Format("20060102150405"), outType))
+		outputFilePath := filepath.Join(output, fmt.Sprintf("[%s-%s]", rootDir.Name, time.Now().Format("20060102150405")))
 		fmt.Println(fmt.Sprintf("FileTree will be output to the %s directory in %s format.\nFullPath is %s", output, outType, outputFilePath))
-		file, err := os.Create(outputFilePath)
+
+		if countFlag {
+			mix := countFile.Mix()
+			go func() {
+				// txt 输出
+				//cf, err := os.Create(fmt.Sprintf("%s.txt", outputFilePath))
+				//if err != nil {
+				//	return
+				//}
+				//defer func(cf *os.File) {
+				//	err := cf.Close()
+				//	if err != nil {
+				//		return
+				//	}
+				//}(cf)
+				//var buf bytes.Buffer
+				//for s, info := range mix {
+				//	buf.WriteString(fmt.Sprintf("\t%s\t%d\t%s\n", s, info.Count, fileTree.ByteString(info.Size)))
+				//}
+				//_, err = cf.Write(buf.Bytes())
+				// csv 输出
+				var tmp = make([][]string, 0, len(mix))
+				for s, info := range mix {
+					if s == "png" {
+						fmt.Println(info)
+					}
+					tmp = append(tmp, []string{s, strconv.Itoa(int(info.Count)), fileTree.ByteString(info.Size)})
+				}
+
+				NewCSV(fmt.Sprintf("%s.csv", outputFilePath), []string{"suffix", "file_count", "file_size"}, tmp)
+			}()
+		}
+
+		file, err := os.Create(fmt.Sprintf("%s.%s", outputFilePath, outType))
 		if err != nil {
 			return err
 		}
@@ -93,7 +133,7 @@ var walkCmd = &cobra.Command{
 				return
 			}
 		}(file)
-		file.Write(bytes)
+		file.Write(treeBytes)
 		return nil
 	},
 }
@@ -102,7 +142,7 @@ var (
 	dirPath      string
 	outType      string
 	output       string
-	count        bool
+	countFlag    bool
 	maxSyncDepth uint8
 )
 
@@ -112,8 +152,7 @@ func init() {
 	walkCmd.Flags().StringVarP(&outType, "type", "t", "json", "output type [json|yaml]")
 	walkCmd.Flags().StringVarP(&output, "output", "o", ".", "output path | Default current directory ")
 	walkCmd.Flags().Uint8VarP(&maxSyncDepth, "maxSyncDepth", "m", 8, "Asynchronous traversal will only be initiated when the folder depth is less than maxSyncDepth")
-	walkCmd.Flags().BoolVarP(&count, "count", "c", false, "count all things. ")
-
+	walkCmd.Flags().BoolVarP(&countFlag, "count", "c", false, "count all things. ")
 	rootCmd.AddCommand(walkCmd)
 }
 
