@@ -16,23 +16,19 @@ type File struct {
 }
 
 func (f *File) GetName() string {
-	//TODO implement me
-	panic("implement me")
+	return f.Name
 }
 
 func (f *File) GetFullPath() string {
-	//TODO implement me
-	panic("implement me")
+	return f.FullPath
 }
 
 func (f *File) GetSize() int64 {
-	//TODO implement me
-	panic("implement me")
+	return f.Size
 }
 
 func (f *File) IsDir() bool {
-	//TODO implement me
-	panic("implement me")
+	return false
 }
 
 func (f *File) String() string {

@@ -36,3 +36,29 @@ type Link struct {
 	Perm     uint16 `json:"perm" yaml:"perm"`
 	LinkTo   string `json:"link_to" yaml:"link_to"`
 }
+
+func (l Link) GetName() string {
+	return l.Name
+}
+
+func (l Link) GetFullPath() string {
+	return l.FullPath
+}
+
+func (l Link) GetSize() int64 {
+	return l.Size
+}
+
+func (l Link) IsDir() bool {
+	return false
+}
+
+func (l Link) String() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (l Link) Print(i int) {
+	//TODO implement me
+	panic("implement me")
+}

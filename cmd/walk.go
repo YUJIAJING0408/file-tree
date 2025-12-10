@@ -38,6 +38,11 @@ var walkCmd = &cobra.Command{
 				return fmt.Errorf("%s is not a directory", dirPath)
 			}
 		}
+		// Ignore
+		rules, ok := fileTree.ReadIgnore(ignorePath)
+		if !ok {
+			rules = make(fileTree.RuleList, 0)
+		}
 		// If the output path does not exist, generate one
 		if err = os.MkdirAll(output, 0777); err != nil {
 			return err
@@ -59,7 +64,7 @@ var walkCmd = &cobra.Command{
 		}
 		var done = make(chan struct{})
 		go func(d chan struct{}) {
-			err := rootDir.WalkSync(0, maxSyncDepth, countFile)
+			err := rootDir.WalkSync(0, maxSyncDepth, countFile, rules)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -113,12 +118,8 @@ var walkCmd = &cobra.Command{
 				// csv 输出
 				var tmp = make([][]string, 0, len(mix))
 				for s, info := range mix {
-					if s == "png" {
-						fmt.Println(info)
-					}
 					tmp = append(tmp, []string{s, strconv.Itoa(int(info.Count)), fileTree.ByteString(info.Size)})
 				}
-
 				NewCSV(fmt.Sprintf("%s.csv", outputFilePath), []string{"suffix", "file_count", "file_size"}, tmp)
 			}()
 		}
@@ -142,6 +143,7 @@ var (
 	dirPath      string
 	outType      string
 	output       string
+	ignorePath   string
 	countFlag    bool
 	maxSyncDepth uint8
 )
@@ -151,6 +153,7 @@ func init() {
 	_ = walkCmd.MarkFlagRequired("path")
 	walkCmd.Flags().StringVarP(&outType, "type", "t", "json", "output type [json|yaml]")
 	walkCmd.Flags().StringVarP(&output, "output", "o", ".", "output path | Default current directory ")
+	walkCmd.Flags().StringVarP(&ignorePath, "ignorePath", "i", ".treeignore", "ignore path")
 	walkCmd.Flags().Uint8VarP(&maxSyncDepth, "maxSyncDepth", "m", 8, "Asynchronous traversal will only be initiated when the folder depth is less than maxSyncDepth")
 	walkCmd.Flags().BoolVarP(&countFlag, "count", "c", false, "count all things. ")
 	rootCmd.AddCommand(walkCmd)

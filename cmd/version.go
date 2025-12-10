@@ -16,7 +16,7 @@ var versionCmd = &cobra.Command{
 	Short: "Version",
 	Long:  "Print the version number of fileTree",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("fileTree v0.1.0")
+		fmt.Println("fileTree v0.1.2")
 	},
 }
 

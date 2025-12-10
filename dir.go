@@ -103,8 +103,34 @@ type Dir struct {
 	Children   []any  `json:"children" yaml:"children"`
 }
 
+func (d *Dir) GetName() string {
+	return d.Name
+}
+
+func (d *Dir) GetFullPath() string {
+	return d.FullPath
+}
+
+func (d *Dir) GetSize() int64 {
+	return d.Size
+}
+
+func (d *Dir) IsDir() bool {
+	return true
+}
+
+func (d *Dir) String() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *Dir) Print(i int) {
+	//TODO implement me
+	panic("implement me")
+}
+
 // Walk The most normal depth first traversal
-func (d *Dir) Walk(countFile *CountFile) error {
+func (d *Dir) Walk(countFile *CountFile, ignoreRules RuleList) error {
 	items, err := os.ReadDir(d.FullPath)
 	if err != nil {
 		return err
@@ -115,15 +141,20 @@ func (d *Dir) Walk(countFile *CountFile) error {
 		if err != nil {
 			return err
 		}
+		fullPath := filepath.Join(d.FullPath, item.Name())
+		size := info.Size()
 		if info.IsDir() {
 			// 构建Dir
 			dir := &Dir{
 				Name:     info.Name(),
-				FullPath: filepath.Join(d.FullPath, info.Name()),
+				FullPath: fullPath,
 				Type:     TypeDir,
 				Perm:     uint16(info.Mode().Perm()),
 			}
-			err = dir.Walk(countFile)
+			if ignoreRules.Ignore(dir) {
+				continue
+			}
+			err = dir.Walk(countFile, ignoreRules)
 			if err != nil {
 				return err
 			}
@@ -138,10 +169,13 @@ func (d *Dir) Walk(countFile *CountFile) error {
 			if suffix == "lnk" {
 				link := &Link{
 					Name:     info.Name(),
-					FullPath: filepath.Join(d.FullPath, info.Name()),
+					FullPath: fullPath,
 					Type:     TypeLink,
 					Perm:     uint16(info.Mode().Perm()),
-					Size:     info.Size(),
+					Size:     size,
+				}
+				if ignoreRules.Ignore(link) {
+					continue
 				}
 				link.LinkTo, err = getLnkTargetPath(link.FullPath)
 				if err != nil {
@@ -154,11 +188,14 @@ func (d *Dir) Walk(countFile *CountFile) error {
 			} else {
 				file := &File{
 					Name:     info.Name(),
-					FullPath: filepath.Join(d.FullPath, info.Name()),
+					FullPath: fullPath,
 					Type:     TypeFile,
 					Perm:     uint16(info.Mode().Perm()),
 					Suffix:   suffix,
-					Size:     info.Size(),
+					Size:     size,
+				}
+				if ignoreRules.Ignore(file) {
+					continue
 				}
 				d.Lock()
 				d.Children = append(d.Children, file)
@@ -173,7 +210,7 @@ func (d *Dir) Walk(countFile *CountFile) error {
 	return nil
 }
 
-func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile) error {
+func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile, ignoreRules RuleList) error {
 	if depth < syncMaxDepth {
 		// 遍历FullPath
 		items, err := os.ReadDir(d.FullPath)
@@ -188,16 +225,21 @@ func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile) er
 			if err != nil {
 				return err
 			}
+			fullPath := filepath.Join(d.FullPath, item.Name())
+			size := info.Size()
 			if info.IsDir() {
 				// 构建Dir
 				dir := &Dir{
 					Name:     info.Name(),
-					FullPath: filepath.Join(d.FullPath, info.Name()),
+					FullPath: fullPath,
 					Type:     TypeDir,
 					Perm:     uint16(info.Mode().Perm()),
 				}
+				if ignoreRules.Ignore(dir) {
+					continue
+				}
 				wg.Go(func() {
-					err := dir.WalkSync(depth+1, syncMaxDepth, countFile)
+					err := dir.WalkSync(depth+1, syncMaxDepth, countFile, ignoreRules)
 					if err != nil {
 						return
 					}
@@ -213,10 +255,13 @@ func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile) er
 				if suffix == "lnk" {
 					link := &Link{
 						Name:     info.Name(),
-						FullPath: filepath.Join(d.FullPath, info.Name()),
+						FullPath: fullPath,
 						Type:     TypeLink,
 						Perm:     uint16(info.Mode().Perm()),
-						Size:     info.Size(),
+						Size:     size,
+					}
+					if ignoreRules.Ignore(link) {
+						continue
 					}
 					link.LinkTo, err = getLnkTargetPath(link.FullPath)
 					if err != nil {
@@ -229,11 +274,14 @@ func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile) er
 				} else {
 					file := &File{
 						Name:     info.Name(),
-						FullPath: filepath.Join(d.FullPath, info.Name()),
+						FullPath: fullPath,
 						Type:     TypeFile,
 						Perm:     uint16(info.Mode().Perm()),
 						Suffix:   suffix,
-						Size:     info.Size(),
+						Size:     size,
+					}
+					if ignoreRules.Ignore(file) {
+						continue
 					}
 					d.Lock()
 					d.Children = append(d.Children, file)
@@ -241,7 +289,7 @@ func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile) er
 					d.Unlock()
 				}
 				if countFile != nil {
-					countFile.Add(suffix, info.Size())
+					countFile.Add(suffix, size)
 				}
 			}
 		}
@@ -249,7 +297,7 @@ func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile) er
 		return nil
 	} else {
 		// 层级已经很深了
-		err := d.Walk(countFile)
+		err := d.Walk(countFile, ignoreRules)
 		if err != nil {
 			return err
 		}
