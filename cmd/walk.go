@@ -23,6 +23,11 @@ var walkCmd = &cobra.Command{
 	Short: "Traverse",
 	Long:  "Traverse the input directory and its subdirectories",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var tk *fileTree.TopK
+		if topK > 0 {
+			tk = fileTree.NewTopK(int(topK))
+		}
+
 		tempDir, _ := os.MkdirTemp("", "file-tree-")
 		defer func(path string) {
 			err := os.RemoveAll(path)
@@ -77,7 +82,7 @@ var walkCmd = &cobra.Command{
 		}
 		var done = make(chan struct{})
 		go func(d chan struct{}) {
-			err := rootDir.WalkSync(0, maxSyncDepth, countFile, rules)
+			err := rootDir.WalkSync(0, maxSyncDepth, countFile, rules, tk)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -166,6 +171,9 @@ var walkCmd = &cobra.Command{
 				time.Sleep(time.Millisecond * 100)
 			}
 		}
+		if topK > 0 && tk != nil {
+			fileTree.FileHead(tk.TopKSorted()).Println()
+		}
 		return nil
 	},
 }
@@ -180,6 +188,7 @@ var (
 	countFlag    bool
 	webFlag      bool
 	maxSyncDepth uint8
+	topK         uint16
 )
 
 func init() {
@@ -193,6 +202,7 @@ func init() {
 	walkCmd.Flags().BoolVarP(&webFlag, "web", "w", false, "show res by web")
 	walkCmd.Flags().StringVarP(&host, "host", "H", "localhost", "host")
 	walkCmd.Flags().IntVarP(&port, "port", "P", 8080, "port")
+	walkCmd.Flags().Uint16VarP(&topK, "topK", "", 0, "topK size")
 	rootCmd.AddCommand(walkCmd)
 }
 

@@ -130,7 +130,7 @@ func (d *Dir) Print(i int) {
 }
 
 // Walk The most normal depth first traversal
-func (d *Dir) Walk(countFile *CountFile, ignoreRules RuleList) error {
+func (d *Dir) Walk(countFile *CountFile, ignoreRules RuleList, topK *TopK) error {
 	items, err := os.ReadDir(d.FullPath)
 	if err != nil {
 		return err
@@ -154,7 +154,7 @@ func (d *Dir) Walk(countFile *CountFile, ignoreRules RuleList) error {
 			if ignoreRules.Ignore(dir) {
 				continue
 			}
-			err = dir.Walk(countFile, ignoreRules)
+			err = dir.Walk(countFile, ignoreRules, topK)
 			if err != nil {
 				return err
 			}
@@ -197,6 +197,9 @@ func (d *Dir) Walk(countFile *CountFile, ignoreRules RuleList) error {
 				if ignoreRules.Ignore(file) {
 					continue
 				}
+				if topK != nil {
+					topK.Push(*file)
+				}
 				d.Lock()
 				d.Children = append(d.Children, file)
 				d.Size += file.Size
@@ -210,7 +213,7 @@ func (d *Dir) Walk(countFile *CountFile, ignoreRules RuleList) error {
 	return nil
 }
 
-func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile, ignoreRules RuleList) error {
+func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile, ignoreRules RuleList, topK *TopK) error {
 	if depth < syncMaxDepth {
 		// 遍历FullPath
 		items, err := os.ReadDir(d.FullPath)
@@ -239,7 +242,7 @@ func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile, ig
 					continue
 				}
 				wg.Go(func() {
-					err := dir.WalkSync(depth+1, syncMaxDepth, countFile, ignoreRules)
+					err := dir.WalkSync(depth+1, syncMaxDepth, countFile, ignoreRules, topK)
 					if err != nil {
 						return
 					}
@@ -283,6 +286,9 @@ func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile, ig
 					if ignoreRules.Ignore(file) {
 						continue
 					}
+					if topK != nil {
+						topK.Push(*file)
+					}
 					d.Lock()
 					d.Children = append(d.Children, file)
 					d.Size += file.Size
@@ -297,14 +303,10 @@ func (d *Dir) WalkSync(depth uint8, syncMaxDepth uint8, countFile *CountFile, ig
 		return nil
 	} else {
 		// 层级已经很深了
-		err := d.Walk(countFile, ignoreRules)
+		err := d.Walk(countFile, ignoreRules, topK)
 		if err != nil {
 			return err
 		}
 		return nil
 	}
-}
-
-func (d *Dir) Find() {
-
 }
