@@ -23,6 +23,19 @@ var walkCmd = &cobra.Command{
 	Short: "Traverse",
 	Long:  "Traverse the input directory and its subdirectories",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		tempDir, _ := os.MkdirTemp("", "file-tree-")
+		defer func(path string) {
+			err := os.RemoveAll(path)
+			if err != nil {
+
+			}
+		}(tempDir)
+		// web-ui for json
+		addr := host + ":" + strconv.Itoa(port)
+		if webFlag {
+			go fileTree.NewTreeMapHttp(addr, tempDir)
+		}
+
 		if dirPath == "." {
 			dirPath, _ = os.Getwd()
 		}
@@ -70,9 +83,6 @@ var walkCmd = &cobra.Command{
 			}
 			d <- struct{}{}
 		}(done)
-
-		var count = 0
-		var countSlice = []string{"▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"}
 	loop:
 		for {
 			select {
@@ -80,7 +90,7 @@ var walkCmd = &cobra.Command{
 				break loop // break for
 			default:
 				time.Sleep(time.Millisecond * 100) //
-				fmt.Printf("\rFileTree is walking '%s' [%s] .", dirPath, countSlice[count%len(countSlice)])
+				fmt.Printf("\rFileTree is walking '%s' .", dirPath)
 			}
 		}
 
@@ -93,7 +103,8 @@ var walkCmd = &cobra.Command{
 		default:
 			panic(fmt.Sprintf("unknown output type: %s", outType))
 		}
-		outputFilePath := filepath.Join(output, fmt.Sprintf("[%s-%s]", rootDir.Name, time.Now().Format("20060102150405")))
+		fileName := fmt.Sprintf("%s-%s", rootDir.Name, time.Now().Format("20060102150405"))
+		outputFilePath := filepath.Join(output, fileName)
 		fmt.Println(fmt.Sprintf("FileTree will be output to the %s directory in %s format.\nFullPath is %s", output, outType, outputFilePath))
 
 		if countFlag {
@@ -124,7 +135,22 @@ var walkCmd = &cobra.Command{
 			}()
 		}
 
-		file, err := os.Create(fmt.Sprintf("%s.%s", outputFilePath, outType))
+		if webFlag {
+			file, err := os.Create(fmt.Sprintf("%s.%s", filepath.Join(tempDir, fileName), "json"))
+			if err != nil {
+				return err
+			}
+			defer file.Close()
+			if outType == "json" {
+				file.Write(treeBytes)
+			} else {
+				tmp, _ := json.Marshal(&rootDir)
+				file.Write(tmp)
+			}
+			fmt.Printf("\nFileTreeWeb: 'http://%s/treeMap?file_name=%s'.\n", addr, fileName)
+		}
+
+		saveFile, err := os.Create(fmt.Sprintf("%s.%s", outputFilePath, outType))
 		if err != nil {
 			return err
 		}
@@ -133,8 +159,13 @@ var walkCmd = &cobra.Command{
 			if err != nil {
 				return
 			}
-		}(file)
-		file.Write(treeBytes)
+		}(saveFile)
+		saveFile.Write(treeBytes)
+		if webFlag {
+			for {
+				time.Sleep(time.Millisecond * 100)
+			}
+		}
 		return nil
 	},
 }
@@ -144,7 +175,10 @@ var (
 	outType      string
 	output       string
 	ignorePath   string
+	host         string
+	port         int
 	countFlag    bool
+	webFlag      bool
 	maxSyncDepth uint8
 )
 
@@ -156,6 +190,9 @@ func init() {
 	walkCmd.Flags().StringVarP(&ignorePath, "ignorePath", "i", ".treeignore", "ignore path")
 	walkCmd.Flags().Uint8VarP(&maxSyncDepth, "maxSyncDepth", "m", 8, "Asynchronous traversal will only be initiated when the folder depth is less than maxSyncDepth")
 	walkCmd.Flags().BoolVarP(&countFlag, "count", "c", false, "count all things. ")
+	walkCmd.Flags().BoolVarP(&webFlag, "web", "w", false, "show res by web")
+	walkCmd.Flags().StringVarP(&host, "host", "H", "localhost", "host")
+	walkCmd.Flags().IntVarP(&port, "port", "P", 8080, "port")
 	rootCmd.AddCommand(walkCmd)
 }
 

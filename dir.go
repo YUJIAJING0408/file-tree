@@ -96,8 +96,8 @@ func (cf *CountFile) Mix() map[string]*FileInfo {
 type Dir struct {
 	sync.Mutex `json:"-" yaml:"-"`
 	Name       string `json:"name" yaml:"name"`
-	FullPath   string `json:"full_path" yaml:"full_path"`
-	Size       int64  `json:"size" yaml:"size"`
+	FullPath   string `json:"path" yaml:"full_path"`
+	Size       int64  `json:"value" yaml:"size"`
 	Type       uint16 `json:"type" yaml:"type"`
 	Perm       uint16 `json:"perm" yaml:"perm"`
 	Children   []any  `json:"children" yaml:"children"`

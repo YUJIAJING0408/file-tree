@@ -8,8 +8,8 @@ package fileTree
 
 type File struct {
 	Name     string `json:"name" yaml:"name"`
-	FullPath string `json:"full_path" yaml:"full_path"`
-	Size     int64  `json:"size" yaml:"size"`
+	FullPath string `json:"path" yaml:"full_path"`
+	Size     int64  `json:"value" yaml:"size"`
 	Type     uint8  `json:"type" yaml:"type"`
 	Perm     uint16 `json:"perm" yaml:"perm"`
 	Suffix   string `json:"suffix" yaml:"suffix"`

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html style="height:100%;margin:0;" lang="en" >
+<head>
+    <meta charset="utf-8"/>
+    <title>Web 报表</title>
+    <style>body{font-family:Arial,serif;margin:40px;}</style>
+    <script src="static/echarts.min.js"></script>
+    <script src="static/axios.min.js"></script>
+    <script src="static/filesize.min.js"></script>
+</head>
+
+<body style="height:100%;margin:0;">
+<div style="width:100%;height:5%;font-size: 54px">FileTree {{.version}}</div>
+<div id="main" style="width:100%;height:95%;"></div>
+<script>
+    const size = filesize.partial({standard: 'jedec',round: 2});
+    var myChart = echarts.init(
+        document.getElementById('main'),
+        null,
+        {
+            renderer: 'canvas',
+            useDirtyRect: true
+        }
+    );
+    var option;
+    function getLevelOption() {
+        return [
+            {
+                itemStyle: {
+                    borderColor: '#777',
+                    borderWidth: 1,
+                    gapWidth: 1
+                },
+                // upperLabel: {
+                //     show: false
+                // }
+            },
+            {
+                itemStyle: {
+                    borderColor: '#555',
+                    borderWidth: 1,
+                    gapWidth: 1
+                },
+                label: {
+                    writingMode: 'vertical-rl',   // 关键一行
+                    // 2. 太宽时强制换行
+                    overflow: 'break',
+                    width: 20,                    // 每列最大宽度（px）
+                    lineHeight: 16,
+                    fontSize: 12          // 节点内部文字
+                },
+                upperLabel: {
+                    fontSize: 6
+                },
+                emphasis: {
+                    itemStyle: {
+                        borderColor: '#ddd'
+                    }
+                }
+            },
+            {
+                colorSaturation: [0.6, 0.8],
+                itemStyle: {
+                    borderWidth: 1,
+                    gapWidth: 1,
+                    borderColorSaturation: 0.6
+                    // borderColor: '#555'
+                },
+                label: {
+                    fontSize: 10          // 节点内部文字
+                },
+                upperLabel: {
+                    fontSize: 6
+                },
+            },
+            {
+                colorSaturation: [0.6, 0.8],
+                itemStyle: {
+                    borderWidth: 1,
+                    gapWidth: 1,
+                    borderColorSaturation: 0.6
+                    // borderColor: '#555'
+                },
+                label: {
+                    fontSize: 10          // 节点内部文字
+                },
+                upperLabel: {
+                    fontSize: 6
+                },
+            },
+            {
+                colorSaturation: [0.6, 0.8],
+                itemStyle: {
+                    borderWidth: 1,
+                    gapWidth: 1,
+                    borderColorSaturation: 0.6
+                    // borderColor: '#555'
+                },
+                label: {
+                    fontSize: 8          // 节点内部文字
+                },
+                upperLabel: {
+                    fontSize: 6
+                },
+            },
+            {
+                colorSaturation: [0.6, 0.8],
+                itemStyle: {
+                    borderWidth: 1,
+                    gapWidth: 1,
+                    borderColorSaturation: 0.6
+                    // borderColor: '#555'
+                },
+                label: {
+                    fontSize: 8          // 节点内部文字
+                },
+                upperLabel: {
+                    fontSize: 6
+                },
+            },
+            {
+                colorSaturation: [0.6, 0.8],
+                itemStyle: {
+                    borderWidth: 1,
+                    gapWidth: 1,
+                    borderColorSaturation: 0.6
+                    // borderColor: '#555'
+                },
+                label: {
+                    fontSize: 8          // 节点内部文字
+                },
+                upperLabel: {
+                    fontSize: 6
+                },
+            },
+            {
+                colorSaturation: [0.6, 0.8],
+                itemStyle: {
+                    borderWidth: 1,
+                    gapWidth: 1,
+                    borderColorSaturation: 0.6
+                    // borderColor: '#555'
+                },
+                label: {
+                    fontSize: 8          // 节点内部文字
+                },
+                upperLabel: {
+                    fontSize: 6
+                },
+            },
+            {
+                colorSaturation: [0.6, 0.8],
+                itemStyle: {
+                    borderWidth: 1,
+                    gapWidth: 1,
+                    borderColorSaturation: 0.6
+                    // borderColor: '#555'
+                },
+                label: {
+                    fontSize: 8          // 节点内部文字
+                },
+                upperLabel: {
+                    fontSize: 6
+                },
+            },
+            {
+                colorSaturation: [0.6, 0.8],
+                itemStyle: {
+                    borderWidth: 1,
+                    gapWidth: 1,
+                    borderColorSaturation: 0.8
+                    // borderColor: '#555'
+                },
+                label: {
+                    fontSize: 8          // 节点内部文字
+                },
+                upperLabel: {
+                    fontSize: 6
+                },
+            },
+            {
+                colorSaturation: [0.6, 0.8],
+                itemStyle: {
+                    borderWidth: 1,
+                    gapWidth: 1,
+                    borderColorSaturation: 0.8
+                    // borderColor: '#555'
+                },
+                label: {
+                    fontSize: 8          // 节点内部文字
+                },
+                upperLabel: {
+                    fontSize: 6
+                },
+            }
+        ];
+    }
+
+
+    myChart.showLoading();
+    var path = {{.path}};
+    axios.get(path).then(res=>{
+        diskData = res.data
+        myChart.hideLoading();
+        myChart.setOption(
+            (option = {
+                title: {
+                    text: 'Disk Usage',
+                    left: 'center'
+                },
+                animation: false,
+                animationDurationUpdate: 0,
+                // 1. 关键：完全关闭鼠标漫游高亮
+                emphasis: { disabled: true }, // 禁用高亮状态
+                childrenVisibleMin: 1600,
+                tooltip: {
+                    triggerOn: 'click',
+                    formatter: function (info) {
+                        // console.log(info)
+                        // var value = info.value;
+                        // var treePathInfo = info.treePathInfo;
+                        // var treePath = [];
+                        // for (var i = 1; i < treePathInfo.length; i++) {
+                        //     treePath.push(treePathInfo[i].name);
+                        // }
+                        // return [
+                        //     '<div class="tooltip-title">' +
+                        //     echarts.format.encodeHTML(treePath.join('/')) +
+                        //     '</div>',
+                        //     'Disk Usage: ' + size(value),
+                        // ].join('');
+                        return [
+                            '<div class="tooltip-title">' +
+                            info.data.path +
+                            '</div>',
+                            'Disk Usage: ' + size(info.value),
+                        ].join('');
+                    }
+                },
+                series: [
+                    {
+                        name: diskData.path,
+                        type: 'treemap',
+                        visibleMin: 1600,
+                        progressive: 500,
+                        progressiveThreshold: 2000,
+                        roam: true,
+                        emphasis: { scale: false },
+                        label: {
+                            show: true,
+                            formatter: '{b}'
+                        },
+                        upperLabel: {
+                            show: true,
+                            height: 20
+                        },
+                        itemStyle: {
+                            borderColor: '#fff'
+                        },
+                        layoutAlgorithm: 'squarify',
+                        levels: getLevelOption(),
+                        data: diskData.children
+                    }
+                ]
+            })
+        );
+
+    })
+
+    option && myChart.setOption(option);
+</script>
+
+</body>
+</html>

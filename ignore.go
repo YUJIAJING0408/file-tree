@@ -42,6 +42,9 @@ type FilePathRule struct {
 }
 
 func (f FilePathRule) Ignore(node Node) bool {
+	if node.IsDir() {
+		return false
+	}
 	return node.GetFullPath() == f.path
 }
 
@@ -50,6 +53,9 @@ type FileNameRule struct {
 }
 
 func (f FileNameRule) Ignore(node Node) bool {
+	if node.IsDir() {
+		return false
+	}
 	return node.GetName() == f.name
 }
 
@@ -59,6 +65,9 @@ type FileSizeRule struct {
 }
 
 func (f FileSizeRule) Ignore(node Node) bool {
+	if node.IsDir() {
+		return false
+	}
 	if f.greaterThan {
 		return node.GetSize() > f.size
 	} else {
