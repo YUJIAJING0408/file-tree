@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	fileTree "github.com/YUJIAJING0408/file-tree"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -23,9 +21,13 @@ var walkCmd = &cobra.Command{
 	Short: "Traverse",
 	Long:  "Traverse the input directory and its subdirectories",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var rd RootDir
 		var tk *fileTree.TopK
 		if topK > 0 {
-			tk = fileTree.NewTopK(int(topK))
+			rd.topK = fileTree.NewTopK(int(topK))
+		}
+		if checkDuplicateFiles {
+			rd.duplicateFile = fileTree.NewDuplicateFiles()
 		}
 
 		tempDir, _ := os.MkdirTemp("", "file-tree-")
@@ -57,10 +59,7 @@ var walkCmd = &cobra.Command{
 			}
 		}
 		// Ignore
-		rules, ok := fileTree.ReadIgnore(ignorePath)
-		if !ok {
-			rules = make(fileTree.RuleList, 0)
-		}
+		rd.ignoreRules, _ = fileTree.ReadIgnore(ignorePath)
 		// If the output path does not exist, generate one
 		if err = os.MkdirAll(output, 0777); err != nil {
 			return err
@@ -69,20 +68,19 @@ var walkCmd = &cobra.Command{
 		if isRoot(dirPath) {
 			name = dirPath[0:1]
 		}
-		var rootDir = fileTree.Dir{
+		rd.dir = fileTree.Dir{
 			Name:     name,
 			FullPath: dirPath,
 			Type:     fileTree.TypeDir,
 			Perm:     uint16(stat.Mode().Perm()),
 		}
 		fmt.Println(fmt.Sprintf("FileTree will walk '%s' .", dirPath))
-		var countFile *fileTree.CountFile = nil
 		if countFlag {
-			countFile = fileTree.NewCountFile(6)
+			rd.countFile = fileTree.NewCountFile(6)
 		}
 		var done = make(chan struct{})
 		go func(d chan struct{}) {
-			err := rootDir.WalkSync(0, maxSyncDepth, countFile, rules, tk)
+			err := rd.Walk()
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -99,38 +97,13 @@ var walkCmd = &cobra.Command{
 			}
 		}
 
-		var treeBytes []byte
-		switch outType {
-		case "json":
-			treeBytes, err = json.Marshal(&rootDir)
-		case "yaml":
-			treeBytes, err = yaml.Marshal(&rootDir)
-		default:
-			panic(fmt.Sprintf("unknown output type: %s", outType))
-		}
-		fileName := fmt.Sprintf("%s-%s", rootDir.Name, time.Now().Format("20060102150405"))
+		fileName := fmt.Sprintf("%s-%s", rd.dir.Name, time.Now().Format("20060102150405"))
 		outputFilePath := filepath.Join(output, fileName)
 		fmt.Println(fmt.Sprintf("FileTree will be output to the %s directory in %s format.\nFullPath is %s", output, outType, outputFilePath))
 
 		if countFlag {
-			mix := countFile.Mix()
+			mix := rd.countFile.Mix()
 			go func() {
-				// txt 输出
-				//cf, err := os.Create(fmt.Sprintf("%s.txt", outputFilePath))
-				//if err != nil {
-				//	return
-				//}
-				//defer func(cf *os.File) {
-				//	err := cf.Close()
-				//	if err != nil {
-				//		return
-				//	}
-				//}(cf)
-				//var buf bytes.Buffer
-				//for s, info := range mix {
-				//	buf.WriteString(fmt.Sprintf("\t%s\t%d\t%s\n", s, info.Count, fileTree.ByteString(info.Size)))
-				//}
-				//_, err = cf.Write(buf.Bytes())
 				// csv 输出
 				var tmp = make([][]string, 0, len(mix))
 				for s, info := range mix {
@@ -141,31 +114,19 @@ var walkCmd = &cobra.Command{
 		}
 
 		if webFlag {
-			file, err := os.Create(fmt.Sprintf("%s.%s", filepath.Join(tempDir, fileName), "json"))
-			if err != nil {
-				return err
-			}
-			defer file.Close()
-			if outType == "json" {
-				file.Write(treeBytes)
-			} else {
-				tmp, _ := json.Marshal(&rootDir)
-				file.Write(tmp)
-			}
+			SaveToJson(fmt.Sprintf("%s.%s", filepath.Join(tempDir, fileName), "json"), &rd.dir)
 			fmt.Printf("\nFileTreeWeb: 'http://%s/treeMap?file_name=%s'.\n", addr, fileName)
 		}
+		path := fmt.Sprintf("%s.%s", outputFilePath, outType)
+		if outType == "json" {
+			SaveToJson(path, &rd.dir)
+		} else {
+			SaveToYaml(path, &rd.dir)
+		}
 
-		saveFile, err := os.Create(fmt.Sprintf("%s.%s", outputFilePath, outType))
 		if err != nil {
 			return err
 		}
-		defer func(file *os.File) {
-			err := file.Close()
-			if err != nil {
-				return
-			}
-		}(saveFile)
-		saveFile.Write(treeBytes)
 		if webFlag {
 			for {
 				time.Sleep(time.Millisecond * 100)
@@ -174,21 +135,27 @@ var walkCmd = &cobra.Command{
 		if topK > 0 && tk != nil {
 			fileTree.FileHead(tk.TopKSorted()).Println()
 		}
+
+		if checkDuplicateFiles {
+			ret := rd.duplicateFile.Check()
+			fmt.Println(ret)
+		}
 		return nil
 	},
 }
 
 var (
-	dirPath      string
-	outType      string
-	output       string
-	ignorePath   string
-	host         string
-	port         int
-	countFlag    bool
-	webFlag      bool
-	maxSyncDepth uint8
-	topK         uint16
+	dirPath             string
+	outType             string
+	output              string
+	ignorePath          string
+	host                string
+	port                int
+	countFlag           bool
+	webFlag             bool
+	maxSyncDepth        uint8
+	topK                uint16
+	checkDuplicateFiles bool
 )
 
 func init() {
@@ -203,10 +170,24 @@ func init() {
 	walkCmd.Flags().StringVarP(&host, "host", "H", "localhost", "host")
 	walkCmd.Flags().IntVarP(&port, "port", "P", 8080, "port")
 	walkCmd.Flags().Uint16VarP(&topK, "topK", "", 0, "topK size")
+	walkCmd.Flags().BoolVarP(&checkDuplicateFiles, "checkDuplicateFiles", "C", false, "check duplicate files")
 	rootCmd.AddCommand(walkCmd)
 }
 
 func isRoot(path string) bool {
 	path = filepath.Clean(path)
 	return filepath.Dir(path) == path
+}
+
+type RootDir struct {
+	maxSyncDepth  uint8
+	dir           fileTree.Dir
+	countFile     *fileTree.CountFile
+	ignoreRules   fileTree.RuleList
+	topK          *fileTree.TopK
+	duplicateFile *fileTree.DuplicateFiles
+}
+
+func (rd *RootDir) Walk() error {
+	return rd.dir.WalkSync(0, rd.maxSyncDepth, rd.countFile, rd.ignoreRules, rd.topK, rd.duplicateFile)
 }

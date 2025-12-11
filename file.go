@@ -1,8 +1,13 @@
 package fileTree
 
 import (
+	"bufio"
 	"container/heap"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"os"
 	"sort"
 )
 
@@ -119,4 +124,79 @@ func (t *TopK) TopKSorted() []File {
 		return res[i].Size > res[j].Size
 	})
 	return res
+}
+
+type DuplicateFiles struct {
+	m map[string]map[int64][]File
+}
+
+func NewDuplicateFiles() *DuplicateFiles {
+	return &DuplicateFiles{
+		m: make(map[string]map[int64][]File),
+	}
+}
+
+type FileCluster struct {
+	Name          string
+	Hash          string
+	Size          int64
+	FileFullPaths []string
+}
+
+func (d *DuplicateFiles) Push(f File) {
+	if d.m[f.Name] == nil {
+		d.m[f.Name] = make(map[int64][]File)
+	}
+	if d.m[f.Name][f.Size] == nil {
+		d.m[f.Name][f.Size] = make([]File, 0)
+	}
+	d.m[f.Name][f.Size] = append(d.m[f.Name][f.Size], f)
+}
+
+func (d *DuplicateFiles) Check() (ret []FileCluster) {
+	for name, fileMap := range d.m {
+		// the same name
+		for size, files := range fileMap {
+			// the same size
+			if len(files) >= 2 {
+				var tmp = make(map[string][]File)
+				for _, file := range files {
+					// the same hash
+					hash, _ := fileMD5Stream(file.FullPath)
+					tmp[hash] = append(tmp[hash], file)
+				}
+				for hash, fs := range tmp {
+					if len(fs) >= 2 {
+						// the same
+						var paths []string
+						for _, file := range fs {
+							paths = append(paths, file.FullPath)
+						}
+						ret = append(ret, FileCluster{
+							Name:          name,
+							Hash:          hash,
+							Size:          size,
+							FileFullPaths: paths,
+						})
+					}
+				}
+			}
+		}
+	}
+	return ret
+}
+
+func fileMD5Stream(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := md5.New()
+	// 4 kB 缓冲区，可调
+	if _, err := io.CopyBuffer(h, bufio.NewReader(f), make([]byte, 4096)); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
